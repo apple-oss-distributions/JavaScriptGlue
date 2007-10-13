@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005 Apple Computer, Inc.  All rights reserved.
+ * Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,53 +26,38 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "JSBase.h"
+#include "CoreFoundation/CoreFoundation.h"
+#include "JavaScriptGlue.h"
 
-JSBase::JSBase(JSTypeID type) : fTypeID(type), fRetainCount(1)
-{
-}
+CFStringRef script = 
+CFSTR("\
+x = 1; \n\
+function getX() \n\
+{ \n\
+    return x; \n\
+} \n\
+");
 
-JSBase::~JSBase()
+int main(int argc, char* argv[])
 {
-}
-
-JSBase* JSBase::Retain()
-{
-    fRetainCount++; return this;
-}
-
-void JSBase::Release()
-{
-    if (--fRetainCount == 0)
-    {
-        JSLock lock;
-        delete this;
+    JSRunRef jsRun = JSRunCreate(script, kJSFlagNone);
+    if (!JSRunCheckSyntax(jsRun)) {
+        return -1;
     }
-}
+    JSObjectRef globalObject = JSRunCopyGlobalObject(jsRun);
+    JSRunEvaluate(jsRun);
+    JSObjectRef getX = JSObjectCopyProperty(globalObject, CFSTR("getX"));
+    JSObjectRef jsResult = JSObjectCallFunction(getX, globalObject, 0);
 
-CFIndex JSBase::RetainCount() const
-{
-    return fRetainCount;
-}
-
-JSTypeID JSBase::GetTypeID() const
-{
-    return fTypeID;
-}
-
-CFStringRef JSBase::CopyDescription()
-{
-    return CFStringCreateWithFormat(
-                0,
-                0,
-                CFSTR("<JSTypeRef- ptr:0x%lx type: %d, retaincount: %ld>"),
-                (long)this,
-                (int)fTypeID,
-                (long)fRetainCount);
-}
-
-UInt8 JSBase::Equal(JSBase* other)
-{
-    return this == other;
+    if (jsResult) {
+        CFTypeRef cfResult = JSObjectCopyCFValue(jsResult);
+        CFShow(cfResult);
+        
+        CFRelease(cfResult);
+        JSRelease(jsResult);
+    }
+    
+    JSRelease(jsRun);
+    
+    return 0;
 }
